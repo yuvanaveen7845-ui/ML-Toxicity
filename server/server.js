@@ -62,18 +62,25 @@ app.set('socketio', io);
 // Security, CORS & parsing middleware
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps)
-        // or if origin matches allowed list or is a Cloudflare Pages subdomain
-        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.pages.dev')) {
+        // Log origins in development or if explicitly needed for debugging
+        if (origin) console.log(`CORS Request From: ${origin}`);
+
+        const isAllowed = !origin ||
+            allowedOrigins.includes(origin) ||
+            origin.endsWith('.pages.dev') ||
+            /^https?:\/\/.*\.ml-toxicity\.pages\.dev$/.test(origin);
+
+        if (isAllowed) {
             callback(null, true);
         } else {
+            console.error(`CORS Blocked: ${origin}`);
             callback(new Error('Not allowed by CORS'));
         }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+    optionsSuccessStatus: 200
 }));
 
 app.use(helmet({
