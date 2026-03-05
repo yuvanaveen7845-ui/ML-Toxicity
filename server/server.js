@@ -137,31 +137,33 @@ app.get('/api/emergency-fix-ceo', async (req, res) => {
         let results = [];
 
         for (const acc of accounts) {
+            const normalizedEmail = acc.email.toLowerCase();
             // Force reset via delete and recreate to be 100% sure there are no stale indices or double hashes
-            await User.deleteOne({ email: acc.email });
+            await User.deleteMany({ email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') } });
 
             const newUser = await User.create({
                 name: acc.name,
-                email: acc.email,
+                email: normalizedEmail,
                 password: acc.password,
                 role: 'ceo',
                 isActive: true,
                 department: 'Executive'
             });
 
-            results.push(`Reset & Recreated: ${acc.email} (ID: ${newUser._id})`);
+            results.push(`Reset & Recreated: ${newUser.email} (ID: ${newUser._id})`);
         }
 
-        const dbUsers = await User.find({}, 'name email role');
+        const dbUsers = await User.find({ role: 'ceo' }, 'name email role');
 
         res.json({
             success: true,
-            message: 'CEO accounts RECREATED for safety',
+            message: 'CEO accounts RECREATED for safety (Case normalized)',
             actions: results,
-            currentDbUsers: dbUsers
+            currentCeoUsers: dbUsers
         });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error('Emergency fix error:', err);
+        res.status(500).json({ success: false, message: err.message, stack: err.stack });
     }
 });
 
