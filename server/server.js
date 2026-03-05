@@ -101,6 +101,27 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Emergency CEO Account Fix
+app.get('/api/emergency-fix-ceo', async (req, res) => {
+    try {
+        const User = require('./models/User');
+        const accounts = [
+            { email: 'kit28.24bad188@gmail.com', passwordHash: '$2b$12$rKAnmb6BIGbiiJb2/bs7YerAI/mqYuIsonT.VEYFvK0i.jngXjtcC' },
+            { email: 'kit28.24bad133@gmail.com', passwordHash: '$2b$12$4L7eEQB.lJX0UadIPKfaWO6Htn70ZFf7gMJekMrbuItYKXbcy1GTi' }
+        ];
+
+        for (const acc of accounts) {
+            await User.updateOne(
+                { email: acc.email },
+                { $set: { password: acc.passwordHash, role: 'ceo', isActive: true } }
+            );
+        }
+        res.send('✅ CEO accounts reset successfully. Please try logging in now.');
+    } catch (err) {
+        res.status(500).send('❌ Error: ' + err.message);
+    }
+});
+
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({ success: false, message: 'Route not found' });
