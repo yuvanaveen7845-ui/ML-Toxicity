@@ -8,8 +8,8 @@ const feedbackSchema = new mongoose.Schema({
     },
     submitterRole: {
         type: String,
-        enum: ['employee', 'team_leader', 'anonymous'],
-        default: 'employee'
+        enum: ['ceo', 'hr', 'team_leader', 'staff', 'anonymous'],
+        default: 'staff'
     },
     team: {
         type: mongoose.Schema.Types.ObjectId,

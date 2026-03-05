@@ -38,12 +38,12 @@ exports.getFeedbacks = async (req, res) => {
         // Role-based filtering
         if (req.user.role === 'team_leader') {
             filter.team = req.user.team;
-        } else if (req.user.role === 'employee') {
+        } else if (req.user.role === 'staff') {
             filter.submittedBy = req.user.id;
         }
 
         if (status) filter.status = status;
-        if (team && req.user.role === 'admin') filter.team = team;
+        if (team && (req.user.role === 'hr' || req.user.role === 'ceo')) filter.team = team;
         if (priority) filter.priority = priority;
 
         const skip = (parseInt(page) - 1) * parseInt(limit);

@@ -4,20 +4,32 @@ import {
     HiOutlineHome, HiOutlineDocumentText, HiOutlineChartBar,
     HiOutlineUsers, HiOutlineUserGroup, HiOutlineCog,
     HiOutlineClipboardList, HiOutlinePencilAlt, HiOutlineDocumentReport,
-    HiOutlineLogout, HiOutlineShieldCheck, HiOutlineChatAlt2
+    HiOutlineLogout, HiOutlineShieldCheck, HiOutlineChatAlt2,
+    HiOutlineLightningBolt, HiOutlineBell
 } from 'react-icons/hi';
 
 const Sidebar = () => {
     const { user, logout } = useAuth();
     const location = useLocation();
 
-    const adminLinks = [
+    const ceoLinks = [
         { to: '/admin', icon: HiOutlineHome, label: 'Dashboard', exact: true },
         { to: '/chat', icon: HiOutlineChatAlt2, label: 'Communication Hub' },
         { to: '/admin/feedback', icon: HiOutlineDocumentText, label: 'Feedback Manager' },
         { to: '/admin/analytics', icon: HiOutlineChartBar, label: 'Analytics' },
         { to: '/admin/users', icon: HiOutlineUsers, label: 'User Management' },
         { to: '/admin/teams', icon: HiOutlineUserGroup, label: 'Team Management' },
+        { to: '/admin/alerts', icon: HiOutlineBell, label: 'Alert Center' },
+    ];
+
+    const hrLinks = [
+        { to: '/admin', icon: HiOutlineHome, label: 'Dashboard', exact: true },
+        { to: '/chat', icon: HiOutlineChatAlt2, label: 'Communication Hub' },
+        { to: '/admin/feedback', icon: HiOutlineDocumentText, label: 'Feedback Manager' },
+        { to: '/admin/analytics', icon: HiOutlineChartBar, label: 'Analytics' },
+        { to: '/admin/users', icon: HiOutlineUsers, label: 'User Management' },
+        { to: '/admin/teams', icon: HiOutlineUserGroup, label: 'Team Management' },
+        { to: '/admin/send-alert', icon: HiOutlineLightningBolt, label: 'Send Alert to CEO', badge: 'alert' },
     ];
 
     const leaderLinks = [
@@ -37,8 +49,8 @@ const Sidebar = () => {
 
     const getLinks = () => {
         switch (user?.role) {
-            case 'ceo':
-            case 'hr': return adminLinks;
+            case 'ceo': return ceoLinks;
+            case 'hr': return hrLinks;
             case 'team_leader': return leaderLinks;
             default: return employeeLinks; // staff
         }
@@ -84,8 +96,9 @@ const Sidebar = () => {
                             to={link.to}
                             className={`sidebar-link ${isActive(link.to, link.exact) ? 'active' : ''}`}
                             end={link.exact}
+                            style={link.badge === 'alert' ? { color: '#ef4444', fontWeight: '600' } : {}}
                         >
-                            <link.icon />
+                            <link.icon style={link.badge === 'alert' ? { color: '#ef4444' } : {}} />
                             {link.label}
                         </NavLink>
                     ))}

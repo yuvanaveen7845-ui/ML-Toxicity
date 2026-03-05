@@ -48,6 +48,50 @@ exports.analyzeFeedback = async (req, res) => {
     }
 };
 
+// @route   PUT /api/analysis/reanalyze/:feedbackId
+exports.reAnalyzeFeedback = async (req, res) => {
+    try {
+        const feedback = await Feedback.findById(req.params.feedbackId);
+        if (!feedback) {
+            return res.status(404).json({ success: false, message: 'Feedback not found' });
+        }
+
+        // Delete existing analysis if present
+        await Analysis.findOneAndDelete({ feedback: feedback._id });
+
+        // Call ML service
+        const result = await analyzeText(feedback.text, feedback.absenteeism, feedback.afterHours);
+
+        const analysis = await Analysis.create({
+            feedback: feedback._id,
+            riskScore: result.risk_score,
+            riskCategory: result.risk_category,
+            sentiment: result.sentiment,
+            distressCount: result.distress,
+            emotionalIntensity: result.emotional_intensity,
+            suppressionScore: result.suppression_score,
+            stressIndex: result.stress_index,
+            logicInsights: result.logic_insights,
+            aiInterpretation: result.ai_interpretation,
+            confidenceLevel: result.confidence || 'medium',
+            analyzedBy: req.user.id
+        });
+
+        // Update feedback status and priority
+        feedback.status = 'analyzed';
+        if (result.risk_score >= 70) feedback.priority = 'critical';
+        else if (result.risk_score >= 40) feedback.priority = 'high';
+        else if (result.risk_score >= 20) feedback.priority = 'medium';
+        else feedback.priority = 'low';
+        await feedback.save();
+
+        res.json({ success: true, data: analysis });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+
 // @route   GET /api/analysis
 exports.getAnalyses = async (req, res) => {
     try {

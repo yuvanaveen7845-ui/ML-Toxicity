@@ -9,7 +9,7 @@ router.use(protect);
 router.get('/users', authorize('hr', 'ceo', 'team_leader'), getUsers);
 router.post('/users', authorize('hr', 'ceo'), createUser);
 router.put('/users/:id', authorize('hr', 'ceo', 'team_leader'), updateUser);
-router.delete('/users/:id', authorize('hr', 'ceo'), deleteUser);
+router.delete('/users/:id', authorize('hr', 'ceo', 'team_leader'), deleteUser);
 
 // Team management
 router.get('/teams', authorize('hr', 'ceo', 'team_leader'), getTeams);

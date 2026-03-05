@@ -19,8 +19,10 @@ const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175',
+    'http://localhost:5176',
     'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174'
+    'http://127.0.0.1:5174',
+    'http://127.0.0.1:5176'
 ].filter(Boolean);
 
 // Setup Socket.io
@@ -56,9 +58,27 @@ io.on('connection', (socket) => {
 // Make io accessible globally to controllers if needed
 app.set('socketio', io);
 
-// Security & parsing middleware
-app.use(helmet());
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+// Security, CORS & parsing middleware
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        // or if the origin is in our allowed list
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+}));
+
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -73,6 +93,7 @@ app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/analysis', require('./routes/analysis'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/alerts', require('./routes/alerts'));
 
 // Health check
 app.get('/api/health', (req, res) => {

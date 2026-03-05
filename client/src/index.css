@@ -973,7 +973,23 @@ select.form-input {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.75;
+    transform: scale(1.15);
+  }
 }
 
 /* ===== SCROLLBAR ===== */
@@ -1038,9 +1054,17 @@ select.form-input {
   transition: width 0.6s ease;
 }
 
-.progress-fill.healthy { background: var(--color-success); }
-.progress-fill.moderate { background: var(--color-warning); }
-.progress-fill.high { background: var(--color-danger); }
+.progress-fill.healthy {
+  background: var(--color-success);
+}
+
+.progress-fill.moderate {
+  background: var(--color-warning);
+}
+
+.progress-fill.high {
+  background: var(--color-danger);
+}
 
 /* ===== FILTER BAR ===== */
 

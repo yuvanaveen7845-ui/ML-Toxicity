@@ -43,6 +43,20 @@ const FeedbackDetail = () => {
         }
     };
 
+    const handleReAnalyze = async () => {
+        setAnalyzing(true);
+        try {
+            const res = await analysisAPI.reAnalyze(id);
+            setAnalysis(res.data.data);
+            toast.success('Re-analysis complete!');
+            loadData();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Re-analysis failed');
+        } finally {
+            setAnalyzing(false);
+        }
+    };
+
     const getRiskColor = (score) => {
         if (score < 35) return '#22c55e';
         if (score < 70) return '#f59e0b';
@@ -69,12 +83,18 @@ const FeedbackDetail = () => {
                 <button className="btn btn-ghost" onClick={() => navigate(-1)}>
                     <HiOutlineArrowLeft /> Back
                 </button>
-                <div>
+                <div style={{ flex: 1 }}>
                     <h1 style={{ fontSize: '1.5rem', fontWeight: '700' }}>Feedback Analysis</h1>
                     <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                         Submitted {new Date(feedback.createdAt).toLocaleString()} • {feedback.isAnonymous ? 'Anonymous' : feedback.submittedBy?.name}
                     </p>
                 </div>
+                {analysis && (
+                    <button className="btn btn-ghost" onClick={handleReAnalyze} disabled={analyzing}
+                        style={{ fontSize: '0.82rem', opacity: analyzing ? 0.6 : 1 }}>
+                        <HiOutlinePlay /> {analyzing ? 'Analyzing...' : 'Re-Analyze'}
+                    </button>
+                )}
             </div>
 
             {/* Feedback Text */}

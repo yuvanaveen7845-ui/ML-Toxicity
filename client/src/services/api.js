@@ -47,6 +47,7 @@ export const feedbackAPI = {
 // Analysis
 export const analysisAPI = {
     analyze: (feedbackId) => api.post(`/analysis/analyze/${feedbackId}`),
+    reAnalyze: (feedbackId) => api.put(`/analysis/reanalyze/${feedbackId}`),
     getAll: (params) => api.get('/analysis', { params }),
     getDashboard: () => api.get('/analysis/dashboard'),
     getTeamAnalysis: (teamId) => api.get(`/analysis/team/${teamId}`),
@@ -71,6 +72,15 @@ export const chatAPI = {
     getBroadcasts: () => api.get('/chat/broadcasts'),
     sendBroadcast: (data) => api.post('/chat/broadcast', data),
     markAsRead: (messageId) => api.put(`/chat/read/${messageId}`)
+};
+
+// Alerts (HR → CEO)
+export const alertAPI = {
+    create: (data) => api.post('/alerts', data),
+    getAll: (params) => api.get('/alerts', { params }),
+    getUnreadCount: () => api.get('/alerts/unread-count'),
+    markRead: (id) => api.put(`/alerts/${id}/read`),
+    dismiss: (id) => api.put(`/alerts/${id}/dismiss`),
 };
 
 export default api;

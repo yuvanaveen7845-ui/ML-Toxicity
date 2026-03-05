@@ -122,17 +122,46 @@ exports.updateUser = async (req, res) => {
 // @route   DELETE /api/admin/users/:id
 exports.deleteUser = async (req, res) => {
     try {
-        const user = await User.findByIdAndDelete(req.params.id);
-        if (!user) {
+        const targetUser = await User.findById(req.params.id);
+        if (!targetUser) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        // Remove from team
-        if (user.team) {
-            await Team.findByIdAndUpdate(user.team, { $pull: { members: user._id } });
+        const requesterRole = req.user.role;
+        const targetRole = targetUser.role;
+
+        // Role-based deletion logic
+        let allowed = false;
+
+        if (requesterRole === 'ceo') {
+            allowed = true; // CEO can delete anyone
+        } else if (requesterRole === 'hr') {
+            // HR can delete Team Leaders and Staff
+            if (targetRole === 'team_leader' || targetRole === 'staff') {
+                allowed = true;
+            }
+        } else if (requesterRole === 'team_leader') {
+            // Team Leader can only delete Staff
+            if (targetRole === 'staff') {
+                allowed = true;
+            }
         }
 
-        res.json({ success: true, message: 'User deleted' });
+        if (!allowed) {
+            return res.status(403).json({
+                success: false,
+                message: `As ${requesterRole.toUpperCase()}, you are not authorized to delete a ${targetRole.toUpperCase()}.`
+            });
+        }
+
+        await User.findByIdAndDelete(req.params.id);
+
+        // Remove from team
+        if (targetUser.team) {
+            await Team.findByIdAndUpdate(targetUser.team, { $pull: { members: targetUser._id } });
+        }
+
+        res.json({ success: true, message: 'User deleted successfully' });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

@@ -17,6 +17,8 @@ import EmployeeDashboard from './pages/employee/EmployeeDashboard';
 import FeedbackHistory from './pages/employee/FeedbackHistory';
 import SubmitFeedback from './pages/shared/SubmitFeedback';
 import ChatHub from './pages/shared/ChatHub';
+import AlertCenter from './pages/ceo/AlertCenter';
+import SendAlert from './pages/hr/SendAlert';
 
 import './index.css';
 
@@ -54,6 +56,8 @@ function App() {
           <Route path="/admin/analytics" element={<ProtectedRoute roles={['hr', 'ceo']}><Analytics /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute roles={['hr', 'ceo']}><UserManagement /></ProtectedRoute>} />
           <Route path="/admin/teams" element={<ProtectedRoute roles={['hr', 'ceo']}><TeamManagement /></ProtectedRoute>} />
+          <Route path="/admin/alerts" element={<ProtectedRoute roles={['ceo']}><AlertCenter /></ProtectedRoute>} />
+          <Route path="/admin/send-alert" element={<ProtectedRoute roles={['hr']}><SendAlert /></ProtectedRoute>} />
 
           {/* Team Leader Routes */}
           <Route path="/leader" element={<ProtectedRoute roles={['team_leader']}><LeaderDashboard /></ProtectedRoute>} />
