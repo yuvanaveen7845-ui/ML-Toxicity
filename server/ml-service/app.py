@@ -106,7 +106,10 @@ DISTRESS_WORDS = [
     "overwhelmed", "exhausted", "drained", "burnout", "stressed", "anxious",
     "ignored", "undervalued", "unheard", "unsupportive", "brushed aside",
     "struggles", "pressure", "constant", "little flexibility", "one-sided",
-    "must adapt", "lacking", "frustrating", "pointless", "meaningless", "tired"
+    "must adapt", "lacking", "frustrating", "pointless", "meaningless", "tired",
+    "biased", "unfair", "favoritism", "toxic", "awful", "terrible", "bad",
+    "micromanaged", "disappointed", "angry", "upset", "hostile", "bullying",
+    "harassment", "rude", "disrespectful", "quit", "leaving", "resign"
 ]
 
 SUPPRESSION_TEMPLATES = [
@@ -130,17 +133,24 @@ def extract_features(text: str):
     text_lower = text.lower()
     
     # Calculate base sentiment via VADER
-    base_sentiment = sia.polarity_scores(text)["compound"]
+    vader_scores = sia.polarity_scores(text)
+    base_sentiment = vader_scores["compound"]
     
-    # Count distress/frustration phrases
+    # Count distress/frustration phrases (with basic stemming)
     distress = sum(w in text_lower for w in DISTRESS_WORDS)
     
+    # Boost distress if VADER shows strong negativity even without matched words
+    if vader_scores["neg"] > 0.15:
+        distress += 1
+    if vader_scores["neg"] > 0.30:
+        distress += 2
+        
     # Apply a penalty to VADER for subtle frustration that VADER misses
-    # E.g. formal feedback with high distress should not be positive
-    sentiment = max(-1.0, base_sentiment - (distress * 0.25))
+    sentiment = max(-1.0, base_sentiment - (distress * 0.15))
     
-    emotional_intensity = abs(sentiment)
-
+    # Ensure emotional intensity reflects both negative sentiment and distress signs
+    emotional_intensity = abs(sentiment) + (distress * 0.1)
+    
     suppression_score = 0.0
     if EMBEDDING_AVAILABLE and embedding_model is not None and template_embeddings is not None:
         text_embedding = embedding_model.encode([text])
