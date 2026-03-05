@@ -6,6 +6,7 @@ server/node_modules/
 # Environment variables
 .env
 server/.env
+client/.env
 client/.env.local
 
 # Build outputs
