@@ -62,9 +62,9 @@ app.set('socketio', io);
 // Security, CORS & parsing middleware
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        // or if the origin is in our allowed list
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Allow requests with no origin (like mobile apps)
+        // or if origin matches allowed list or is a Cloudflare Pages subdomain
+        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.pages.dev')) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
