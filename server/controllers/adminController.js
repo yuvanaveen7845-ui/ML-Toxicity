@@ -38,7 +38,18 @@ exports.getUsers = async (req, res) => {
 // @route   POST /api/admin/users
 exports.createUser = async (req, res) => {
     try {
-        const { name, email, password, role, department, team } = req.body;
+        let { name, email, password, role, department, team } = req.body;
+
+        // Apply Team Leader restrictions
+        if (req.user.role === 'team_leader') {
+            role = 'staff'; // Enforce staff role
+            team = req.user.team; // Enforce TL's team
+            department = req.user.department; // Match TL's department
+
+            if (!team) {
+                return res.status(400).json({ success: false, message: 'You must be assigned to a team to create staff members' });
+            }
+        }
 
         const existingUser = await User.findOne({ email });
         if (existingUser) {
@@ -57,6 +68,53 @@ exports.createUser = async (req, res) => {
         }
 
         res.status(201).json({ success: true, data: user });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// @route   PUT /api/admin/users/bulk-assign
+// @desc    Assign multiple users to a team (teleporting them if already on another team)
+exports.bulkAssignUsers = async (req, res) => {
+    try {
+        const { userIds, teamId } = req.body;
+
+        if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'Please provide an array of user IDs' });
+        }
+
+        let targetTeamId = teamId === '' ? null : teamId;
+
+        if (targetTeamId) {
+            const teamExists = await Team.findById(targetTeamId);
+            if (!teamExists) {
+                return res.status(404).json({ success: false, message: 'Team not found' });
+            }
+        }
+
+        // Process each user individually to handle pulling from their old team
+        const users = await User.find({ _id: { $in: userIds } });
+
+        for (const user of users) {
+            // If they are already in a team and it's different from the target team
+            if (user.team && (!targetTeamId || user.team.toString() !== targetTeamId.toString())) {
+                // Pull them out of the old team
+                await Team.findByIdAndUpdate(user.team, { $pull: { members: user._id } });
+            }
+        }
+
+        // Update all users' team reference
+        await User.updateMany(
+            { _id: { $in: userIds } },
+            { $set: { team: targetTeamId } }
+        );
+
+        // If assigning to a real team, add them to the team's members array
+        if (targetTeamId) {
+            await Team.findByIdAndUpdate(targetTeamId, { $addToSet: { members: { $each: userIds } } });
+        }
+
+        res.json({ success: true, message: `Successfully updated team assignment for ${userIds.length} users` });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

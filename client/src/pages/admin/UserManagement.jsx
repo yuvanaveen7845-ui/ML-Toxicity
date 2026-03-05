@@ -25,6 +25,10 @@ const UserManagement = () => {
     const [form, setForm] = useState({ name: '', email: '', password: '', role: 'staff', department: '', team: '' });
     const [showPassword, setShowPassword] = useState(false);
 
+    // Bulk selection state
+    const [selectedUsers, setSelectedUsers] = useState(new Set());
+    const [bulkTeamId, setBulkTeamId] = useState('');
+
     // Credentials modal state (for new users)
     const [showCredentials, setShowCredentials] = useState(false);
     const [createdCredentials, setCreatedCredentials] = useState({ name: '', email: '', password: '', role: '' });
@@ -45,6 +49,7 @@ const UserManagement = () => {
             ]);
             setUsers(usersRes.data.data);
             setTeams(teamsRes.data.data);
+            setSelectedUsers(new Set()); // Reset selection on load
         } catch (error) {
             toast.error('Failed to load data');
         } finally {
@@ -55,7 +60,14 @@ const UserManagement = () => {
     const openCreate = () => {
         setEditingUser(null);
         const autoPassword = generatePassword();
-        setForm({ name: '', email: '', password: autoPassword, role: 'staff', department: '', team: '' });
+        setForm({
+            name: '',
+            email: '',
+            password: autoPassword,
+            role: 'staff',
+            department: user?.role === 'team_leader' ? user.department : '',
+            team: user?.role === 'team_leader' ? (user.team?._id || user.team) : ''
+        });
         setShowPassword(true);
         setShowModal(true);
     };
@@ -126,6 +138,37 @@ const UserManagement = () => {
         }
     };
 
+    const toggleSelectUser = (id) => {
+        const newSet = new Set(selectedUsers);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedUsers(newSet);
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedUsers.size === users.length) {
+            setSelectedUsers(new Set());
+        } else {
+            setSelectedUsers(new Set(users.map(u => u._id)));
+        }
+    };
+
+    const handleBulkAssign = async () => {
+        if (selectedUsers.size === 0) return toast.error('No users selected');
+        if (!bulkTeamId) return toast.error('Please select a team to assign to');
+        if (!window.confirm(`Are you sure you want to assign ${selectedUsers.size} users to this team?`)) return;
+
+        setLoading(true);
+        try {
+            await adminAPI.bulkAssignUsers(Array.from(selectedUsers), bulkTeamId === 'none' ? '' : bulkTeamId);
+            toast.success('Users successfully assigned');
+            loadData();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to assign users');
+            setLoading(false);
+        }
+    };
+
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
         toast.success('Copied to clipboard');
@@ -153,18 +196,36 @@ const UserManagement = () => {
                     <h1>User Management</h1>
                     <p>{user?.role === 'team_leader' ? 'Manage your team members' : 'Manage user accounts and role assignments'}</p>
                 </div>
-                {(user?.role === 'hr' || user?.role === 'ceo') && (
+                {(user?.role === 'hr' || user?.role === 'ceo' || user?.role === 'team_leader') && (
                     <button className="btn btn-primary" onClick={openCreate}>
-                        <HiOutlinePlus /> Add User
+                        <HiOutlinePlus /> {user?.role === 'team_leader' ? 'Add Staff' : 'Add User'}
                     </button>
                 )}
             </div>
+
+            {(user?.role === 'hr' || user?.role === 'ceo') && selectedUsers.size > 0 && (
+                <div style={{ background: 'var(--color-bg-tertiary)', padding: '12px 20px', borderRadius: 'var(--radius-md)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid var(--color-border)' }}>
+                    <span style={{ fontWeight: 500 }}>{selectedUsers.size} selected</span>
+                    <select className="form-input" style={{ width: 'auto', padding: '6px 12px' }} value={bulkTeamId} onChange={e => setBulkTeamId(e.target.value)}>
+                        <option value="">Select Team to Assign...</option>
+                        {teams.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
+                        <option value="none">Remove from Team (Unassign)</option>
+                    </select>
+                    <button className="btn btn-primary btn-sm" onClick={handleBulkAssign}>Assign</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setSelectedUsers(new Set())}>Cancel</button>
+                </div>
+            )}
 
             <div className="card">
                 <div className="data-table-wrap">
                     <table className="data-table">
                         <thead>
                             <tr>
+                                {(user?.role === 'hr' || user?.role === 'ceo') && (
+                                    <th style={{ width: '40px' }}>
+                                        <input type="checkbox" checked={users.length > 0 && selectedUsers.size === users.length} onChange={toggleSelectAll} />
+                                    </th>
+                                )}
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Role</th>
@@ -176,7 +237,12 @@ const UserManagement = () => {
                         </thead>
                         <tbody>
                             {users.map(u => (
-                                <tr key={u._id}>
+                                <tr key={u._id} style={selectedUsers.has(u._id) ? { background: 'rgba(13, 148, 136, 0.05)' } : {}}>
+                                    {(user?.role === 'hr' || user?.role === 'ceo') && (
+                                        <td>
+                                            <input type="checkbox" checked={selectedUsers.has(u._id)} onChange={() => toggleSelectUser(u._id)} />
+                                        </td>
+                                    )}
                                     <td style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{u.name}</td>
                                     <td>{u.email}</td>
                                     <td>{getRoleBadge(u.role)}</td>
@@ -290,7 +356,7 @@ const UserManagement = () => {
                             </div>
                             <div className="form-group">
                                 <label className="form-label">Team</label>
-                                <select className="form-input" value={form.team} onChange={e => setForm(p => ({ ...p, team: e.target.value }))}>
+                                <select className="form-input" value={form.team} onChange={e => setForm(p => ({ ...p, team: e.target.value }))} disabled={user?.role === 'team_leader'}>
                                     <option value="">No Team</option>
                                     {teams.filter(t => user?.role !== 'team_leader' || t._id === user?.team?._id || t._id === user?.team).map(t => (
                                         <option key={t._id} value={t._id}>{t.name}</option>

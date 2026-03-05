@@ -59,6 +59,7 @@ export const adminAPI = {
     createUser: (data) => api.post('/admin/users', data),
     updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
     deleteUser: (id) => api.delete(`/admin/users/${id}`),
+    bulkAssignUsers: (userIds, teamId) => api.put('/admin/users/bulk-assign', { userIds, teamId }),
     resetPassword: (id, newPassword) => api.put(`/admin/users/${id}/reset-password`, { newPassword }),
     getTeams: () => api.get('/admin/teams'),
     createTeam: (data) => api.post('/admin/teams', data),
