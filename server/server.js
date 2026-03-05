@@ -16,6 +16,7 @@ const server = http.createServer(app);
 
 const allowedOrigins = [
     process.env.CLIENT_URL,
+    'https://ml-toxicity.pages.dev',
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175',
