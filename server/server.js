@@ -106,19 +106,44 @@ app.get('/api/emergency-fix-ceo', async (req, res) => {
     try {
         const User = require('./models/User');
         const accounts = [
-            { email: 'kit28.24bad188@gmail.com', passwordHash: '$2b$12$rKAnmb6BIGbiiJb2/bs7YerAI/mqYuIsonT.VEYFvK0i.jngXjtcC' },
-            { email: 'kit28.24bad133@gmail.com', passwordHash: '$2b$12$4L7eEQB.lJX0UadIPKfaWO6Htn70ZFf7gMJekMrbuItYKXbcy1GTi' }
+            { name: 'Yuva', email: 'kit28.24bad188@gmail.com', password: 'yuva2503' },
+            { name: 'Sam', email: 'kit28.24bad133@gmail.com', password: 'sam2076' }
         ];
 
+        let results = [];
+
         for (const acc of accounts) {
-            await User.updateOne(
-                { email: acc.email },
-                { $set: { password: acc.passwordHash, role: 'ceo', isActive: true } }
-            );
+            let user = await User.findOne({ email: acc.email });
+            if (user) {
+                user.password = acc.password;
+                user.role = 'ceo';
+                user.isActive = true;
+                await user.save();
+                results.push(`Updated: ${acc.email}`);
+            } else {
+                await User.create({
+                    name: acc.name,
+                    email: acc.email,
+                    password: acc.password,
+                    role: 'ceo',
+                    isActive: true,
+                    department: 'Executive'
+                });
+                results.push(`Created Fresh: ${acc.email}`);
+            }
         }
-        res.send('✅ CEO accounts reset successfully. Please try logging in now.');
+
+        // Also check if they exist at all (sanity check)
+        const allUsers = await User.find({}, 'email role');
+
+        res.json({
+            success: true,
+            message: 'CEO accounts processed',
+            actions: results,
+            currentUsers: allUsers
+        });
     } catch (err) {
-        res.status(500).send('❌ Error: ' + err.message);
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 
