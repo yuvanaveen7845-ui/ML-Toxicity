@@ -60,6 +60,7 @@ export const adminAPI = {
     updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
     deleteUser: (id) => api.delete(`/admin/users/${id}`),
     bulkAssignUsers: (userIds, teamId) => api.put('/admin/users/bulk-assign', { userIds, teamId }),
+    teleportUser: (id, teamId) => api.put(`/admin/users/${id}/teleport`, { teamId }),
     resetPassword: (id, newPassword) => api.put(`/admin/users/${id}/reset-password`, { newPassword }),
     getTeams: () => api.get('/admin/teams'),
     createTeam: (data) => api.post('/admin/teams', data),

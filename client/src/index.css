@@ -1,20 +1,20 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  /* Primary Palette — Deep Navy & Teal */
-  --color-bg-primary: #0b1120;
-  --color-bg-secondary: #111827;
-  --color-bg-tertiary: #1a2332;
-  --color-bg-card: #1e293b;
-  --color-bg-card-hover: #243044;
-  --color-bg-input: #1e293b;
-  --color-bg-sidebar: #0f172a;
+  /* Primary Palette — AMOLED Black & Charcoal */
+  --color-bg-primary: #000000;
+  --color-bg-secondary: #080808;
+  --color-bg-tertiary: #121212;
+  --color-bg-card: #050505;
+  --color-bg-card-hover: #111111;
+  --color-bg-input: #0a0a0a;
+  --color-bg-sidebar: #020202;
 
-  /* Accent Colors */
-  --color-accent: #0d9488;
-  --color-accent-hover: #0f766e;
-  --color-accent-light: rgba(13, 148, 136, 0.12);
-  --color-accent-gradient: linear-gradient(135deg, #0d9488, #06b6d4);
+  /* Accent Colors - Premium Dual Tone Gradient */
+  --color-accent: #00d2ff;
+  --color-accent-hover: #00b4db;
+  --color-accent-light: rgba(0, 210, 255, 0.12);
+  --color-accent-gradient: linear-gradient(135deg, #3a7bd5 0%, #00d2ff 100%);
 
   /* Text */
   --color-text-primary: #f1f5f9;
@@ -33,14 +33,14 @@
   --color-info-bg: rgba(59, 130, 246, 0.1);
 
   /* Borders */
-  --color-border: #1e293b;
-  --color-border-light: #334155;
+  --color-border: #1a1a1a;
+  --color-border-light: #262626;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.12);
+  /* Shadows - Dark & Deep with Premium Rim */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.8);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 8px 32px rgba(0, 210, 255, 0.15);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
   /* Radius */
   --radius-sm: 6px;
@@ -107,7 +107,10 @@ a {
 .page-header h1 {
   font-size: 1.75rem;
   font-weight: 700;
-  color: var(--color-text-heading);
+  background: var(--color-accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   letter-spacing: -0.02em;
 }
 

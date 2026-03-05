@@ -74,7 +74,8 @@ exports.createUser = async (req, res) => {
 };
 
 // @route   PUT /api/admin/users/bulk-assign
-// @desc    Assign multiple users to a team (teleporting them if already on another team)
+// @desc    Multi-select staff and assign them to a team (HR/CEO only).
+//          Automatically removes each user from their previous team first.
 exports.bulkAssignUsers = async (req, res) => {
     try {
         const { userIds, teamId } = req.body;
@@ -83,7 +84,7 @@ exports.bulkAssignUsers = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Please provide an array of user IDs' });
         }
 
-        let targetTeamId = teamId === '' ? null : teamId;
+        const targetTeamId = teamId === '' ? null : (teamId || null);
 
         if (targetTeamId) {
             const teamExists = await Team.findById(targetTeamId);
@@ -92,13 +93,19 @@ exports.bulkAssignUsers = async (req, res) => {
             }
         }
 
-        // Process each user individually to handle pulling from their old team
+        // Fetch users and validate they are staff members
         const users = await User.find({ _id: { $in: userIds } });
+        const nonStaff = users.filter(u => u.role !== 'staff');
+        if (nonStaff.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Bulk assign only allowed for Staff members. Non-staff users: ${nonStaff.map(u => u.name).join(', ')}`
+            });
+        }
 
+        // Remove each user from their current team (if different)
         for (const user of users) {
-            // If they are already in a team and it's different from the target team
             if (user.team && (!targetTeamId || user.team.toString() !== targetTeamId.toString())) {
-                // Pull them out of the old team
                 await Team.findByIdAndUpdate(user.team, { $pull: { members: user._id } });
             }
         }
@@ -109,12 +116,63 @@ exports.bulkAssignUsers = async (req, res) => {
             { $set: { team: targetTeamId } }
         );
 
-        // If assigning to a real team, add them to the team's members array
+        // Add users to the new team's members list
         if (targetTeamId) {
             await Team.findByIdAndUpdate(targetTeamId, { $addToSet: { members: { $each: userIds } } });
         }
 
-        res.json({ success: true, message: `Successfully updated team assignment for ${userIds.length} users` });
+        res.json({ success: true, message: `Successfully moved ${userIds.length} staff member(s) to the selected team` });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// @route   PUT /api/admin/users/:id/teleport
+// @desc    HR / CEO: Move a single staff member from one team to another.
+exports.teleportUser = async (req, res) => {
+    try {
+        const { teamId } = req.body;
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        if (user.role !== 'staff') {
+            return res.status(400).json({ success: false, message: 'Teleport is only allowed for Staff members' });
+        }
+
+        const newTeamId = teamId === '' ? null : (teamId || null);
+
+        if (newTeamId) {
+            const newTeam = await Team.findById(newTeamId);
+            if (!newTeam) {
+                return res.status(404).json({ success: false, message: 'Target team not found' });
+            }
+        }
+
+        const oldTeamId = user.team;
+
+        // Remove from old team
+        if (oldTeamId && oldTeamId.toString() !== newTeamId?.toString()) {
+            await Team.findByIdAndUpdate(oldTeamId, { $pull: { members: user._id } });
+        }
+
+        // Update user's team
+        user.team = newTeamId;
+        await user.save();
+
+        // Add to new team
+        if (newTeamId) {
+            await Team.findByIdAndUpdate(newTeamId, { $addToSet: { members: user._id } });
+        }
+
+        await user.populate('team', 'name department');
+        res.json({
+            success: true,
+            message: `${user.name} has been teleported to ${user.team ? user.team.name : 'no team'}`,
+            data: user
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

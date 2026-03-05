@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { adminAPI } from '../../services/api';
-import { HiOutlinePlus, HiOutlinePencil, HiOutlineTrash, HiOutlineX, HiOutlineClipboardCopy, HiOutlineRefresh, HiOutlineEye, HiOutlineEyeOff } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlinePencil, HiOutlineTrash, HiOutlineX, HiOutlineClipboardCopy, HiOutlineRefresh, HiOutlineEye, HiOutlineEyeOff, HiOutlineSwitchHorizontal } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import Layout from '../../components/Layout';
 
@@ -36,6 +36,10 @@ const UserManagement = () => {
     // Reset Password modal state (for existing users)
     const [showResetModal, setShowResetModal] = useState(false);
     const [resetData, setResetData] = useState({ name: '', password: '' });
+
+    // Teleport modal state (HR/CEO only)
+    const [teleportTarget, setTeleportTarget] = useState(null); // {_id, name, team}
+    const [teleportTeamId, setTeleportTeamId] = useState('');
 
     useEffect(() => {
         loadData();
@@ -135,6 +139,23 @@ const UserManagement = () => {
             loadData();
         } catch (err) {
             toast.error('Failed to delete user');
+        }
+    };
+
+    const openTeleport = (u) => {
+        setTeleportTarget(u);
+        setTeleportTeamId(u.team?._id || '');
+    };
+
+    const handleTeleport = async () => {
+        if (!teleportTarget) return;
+        try {
+            const res = await adminAPI.teleportUser(teleportTarget._id, teleportTeamId || '');
+            toast.success(res.data.message);
+            setTeleportTarget(null);
+            loadData();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Teleport failed');
         }
     };
 
@@ -254,6 +275,16 @@ const UserManagement = () => {
                                             <button className="btn btn-ghost btn-sm" onClick={() => openEdit(u)} title="Edit User"><HiOutlinePencil /></button>
                                             {(user?.role === 'hr' || user?.role === 'ceo') && (
                                                 <>
+                                                    {u.role === 'staff' && (
+                                                        <button
+                                                            className="btn btn-ghost btn-sm"
+                                                            onClick={() => openTeleport(u)}
+                                                            title="Teleport to another team"
+                                                            style={{ color: 'var(--color-accent)' }}
+                                                        >
+                                                            <HiOutlineSwitchHorizontal />
+                                                        </button>
+                                                    )}
                                                     <button className="btn btn-ghost btn-sm" onClick={() => handleResetPassword(u._id, u.name)} title="Reset Password"><HiOutlineRefresh /></button>
                                                     <button className="btn btn-ghost btn-sm" style={{ color: 'var(--color-danger)' }} onClick={() => handleDelete(u._id)} title="Delete User"><HiOutlineTrash /></button>
                                                 </>
@@ -473,6 +504,55 @@ const UserManagement = () => {
                         <div className="modal-actions">
                             <button className="btn btn-primary" onClick={() => setShowResetModal(false)}>
                                 Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Teleport Modal */}
+            {teleportTarget && (
+                <div className="modal-overlay" onClick={() => setTeleportTarget(null)}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>⚡ Teleport Staff Member</h2>
+                            <button className="modal-close" onClick={() => setTeleportTarget(null)}><HiOutlineX /></button>
+                        </div>
+
+                        <div style={{
+                            background: 'var(--color-bg-tertiary)',
+                            borderRadius: 'var(--radius-md)',
+                            padding: '14px 16px',
+                            marginBottom: '20px'
+                        }}>
+                            <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                                Moving <strong style={{ color: 'var(--color-text-primary)' }}>{teleportTarget.name}</strong> from{' '}
+                                <strong style={{ color: 'var(--color-accent)' }}>{teleportTarget.team?.name || 'No Team'}</strong>{' '}
+                                to a new team.
+                            </p>
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Destination Team</label>
+                            <select
+                                className="form-input"
+                                value={teleportTeamId}
+                                onChange={e => setTeleportTeamId(e.target.value)}
+                            >
+                                <option value="">— Remove from all teams —</option>
+                                {teams.map(t => (
+                                    <option key={t._id} value={t._id}>{t.name} ({t.department})</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="modal-actions">
+                            <button className="btn btn-secondary" onClick={() => setTeleportTarget(null)}>Cancel</button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleTeleport}
+                                style={{ background: 'linear-gradient(135deg, #0d9488, #0891b2)' }}
+                            >
+                                <HiOutlineSwitchHorizontal /> Teleport
                             </button>
                         </div>
                     </div>
