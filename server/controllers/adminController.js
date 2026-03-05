@@ -167,6 +167,34 @@ exports.deleteUser = async (req, res) => {
     }
 };
 
+// @route   PUT /api/admin/users/:id/reset-password
+exports.resetPassword = async (req, res) => {
+    try {
+        const { newPassword } = req.body;
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+        }
+
+        const user = await User.findById(req.params.id).select('+password');
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // CEO can reset anyone; HR can reset non-CEO
+        if (req.user.role === 'hr' && user.role === 'ceo') {
+            return res.status(403).json({ success: false, message: 'HR cannot reset CEO password' });
+        }
+
+        // Set new password — pre-save hook in User model will hash it once correctly
+        user.password = newPassword;
+        await user.save();
+
+        res.json({ success: true, message: `Password reset successfully for ${user.name}` });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 // ==================== TEAM MANAGEMENT ====================
 
 // @route   GET /api/admin/teams

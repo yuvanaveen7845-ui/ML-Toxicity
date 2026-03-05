@@ -25,9 +25,13 @@ const UserManagement = () => {
     const [form, setForm] = useState({ name: '', email: '', password: '', role: 'staff', department: '', team: '' });
     const [showPassword, setShowPassword] = useState(false);
 
-    // Credentials modal state
+    // Credentials modal state (for new users)
     const [showCredentials, setShowCredentials] = useState(false);
     const [createdCredentials, setCreatedCredentials] = useState({ name: '', email: '', password: '', role: '' });
+
+    // Reset Password modal state (for existing users)
+    const [showResetModal, setShowResetModal] = useState(false);
+    const [resetData, setResetData] = useState({ name: '', password: '' });
 
     useEffect(() => {
         loadData();
@@ -68,6 +72,20 @@ const UserManagement = () => {
         });
         setShowPassword(false);
         setShowModal(true);
+    };
+
+    const handleResetPassword = async (userId, name) => {
+        if (!window.confirm(`Are you sure you want to reset the password for ${name}?`)) return;
+
+        const newPassword = generatePassword();
+        try {
+            await adminAPI.resetPassword(userId, newPassword);
+            setResetData({ name, password: newPassword });
+            setShowResetModal(true);
+            toast.success('Password reset successfully');
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to reset password');
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -157,19 +175,22 @@ const UserManagement = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {users.map(user => (
-                                <tr key={user._id}>
-                                    <td style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{user.name}</td>
-                                    <td>{user.email}</td>
-                                    <td>{getRoleBadge(user.role)}</td>
-                                    <td>{user.department || '—'}</td>
-                                    <td>{user.team?.name || '—'}</td>
-                                    <td><span className={`risk-badge ${user.isActive ? 'healthy' : 'high'}`}>{user.isActive ? 'Active' : 'Inactive'}</span></td>
+                            {users.map(u => (
+                                <tr key={u._id}>
+                                    <td style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{u.name}</td>
+                                    <td>{u.email}</td>
+                                    <td>{getRoleBadge(u.role)}</td>
+                                    <td>{u.department || '—'}</td>
+                                    <td>{u.team?.name || '—'}</td>
+                                    <td><span className={`risk-badge ${u.isActive ? 'healthy' : 'high'}`}>{u.isActive ? 'Active' : 'Inactive'}</span></td>
                                     <td>
                                         <div style={{ display: 'flex', gap: '6px' }}>
-                                            <button className="btn btn-ghost btn-sm" onClick={() => openEdit(user)} title="Add to Team"><HiOutlinePencil /></button>
+                                            <button className="btn btn-ghost btn-sm" onClick={() => openEdit(u)} title="Edit User"><HiOutlinePencil /></button>
                                             {(user?.role === 'hr' || user?.role === 'ceo') && (
-                                                <button className="btn btn-ghost btn-sm" style={{ color: 'var(--color-danger)' }} onClick={() => handleDelete(user._id)}><HiOutlineTrash /></button>
+                                                <>
+                                                    <button className="btn btn-ghost btn-sm" onClick={() => handleResetPassword(u._id, u.name)} title="Reset Password"><HiOutlineRefresh /></button>
+                                                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--color-danger)' }} onClick={() => handleDelete(u._id)} title="Delete User"><HiOutlineTrash /></button>
+                                                </>
                                             )}
                                         </div>
                                     </td>
@@ -340,6 +361,51 @@ const UserManagement = () => {
                                 <HiOutlineClipboardCopy /> Copy All Credentials
                             </button>
                             <button className="btn btn-primary" onClick={() => setShowCredentials(false)}>
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Reset Password Modal */}
+            {showResetModal && (
+                <div className="modal-overlay" onClick={() => setShowResetModal(false)}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>✅ Password Reset Successfully</h2>
+                            <button className="modal-close" onClick={() => setShowResetModal(false)}><HiOutlineX /></button>
+                        </div>
+
+                        <div style={{
+                            background: 'var(--color-warning-light)',
+                            border: '1px solid rgba(245,158,11,0.2)',
+                            borderRadius: 'var(--radius-md)',
+                            padding: '14px 16px',
+                            marginBottom: '20px',
+                            fontSize: '0.82rem',
+                            color: 'var(--color-warning)'
+                        }}>
+                            ⚠️ The new password for <strong>{resetData.name}</strong> has been generated. Provide it to the user now.
+                        </div>
+
+                        <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: '20px', marginBottom: '20px' }}>
+                            <div style={{ marginBottom: '14px' }}>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>User</span>
+                                <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-text-primary)', marginTop: '2px' }}>{resetData.name}</div>
+                            </div>
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New Password</span>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => copyToClipboard(resetData.password)} style={{ padding: '2px 8px', fontSize: '0.75rem' }}>
+                                        <HiOutlineClipboardCopy /> Copy
+                                    </button>
+                                </div>
+                                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--color-warning)', marginTop: '2px', fontFamily: 'monospace', letterSpacing: '0.05em' }}>{resetData.password}</div>
+                            </div>
+                        </div>
+
+                        <div className="modal-actions">
+                            <button className="btn btn-primary" onClick={() => setShowResetModal(false)}>
                                 Done
                             </button>
                         </div>
