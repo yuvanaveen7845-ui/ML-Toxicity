@@ -108,6 +108,23 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Diagnostic endpoint to check code version
+app.get('/api/version-check', (req, res) => {
+    const fs = require('fs');
+    const path = require('path');
+    try {
+        const authPath = path.join(__dirname, 'controllers', 'authController.js');
+        const content = fs.readFileSync(authPath, 'utf8');
+        res.json({
+            version: 'V4 (Detailed Errors)',
+            lastCommit: '338fb46',
+            sampleContent: content.substring(content.indexOf('Invalid credentials'), content.indexOf('Invalid credentials') + 50)
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Emergency CEO Account Fix
 app.get('/api/emergency-fix-ceo', async (req, res) => {
     try {
