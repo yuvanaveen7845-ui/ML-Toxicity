@@ -113,34 +113,28 @@ app.get('/api/emergency-fix-ceo', async (req, res) => {
         let results = [];
 
         for (const acc of accounts) {
-            let user = await User.findOne({ email: acc.email });
-            if (user) {
-                user.password = acc.password;
-                user.role = 'ceo';
-                user.isActive = true;
-                await user.save();
-                results.push(`Updated: ${acc.email}`);
-            } else {
-                await User.create({
-                    name: acc.name,
-                    email: acc.email,
-                    password: acc.password,
-                    role: 'ceo',
-                    isActive: true,
-                    department: 'Executive'
-                });
-                results.push(`Created Fresh: ${acc.email}`);
-            }
+            // Force reset via delete and recreate to be 100% sure there are no stale indices or double hashes
+            await User.deleteOne({ email: acc.email });
+
+            const newUser = await User.create({
+                name: acc.name,
+                email: acc.email,
+                password: acc.password,
+                role: 'ceo',
+                isActive: true,
+                department: 'Executive'
+            });
+
+            results.push(`Reset & Recreated: ${acc.email} (ID: ${newUser._id})`);
         }
 
-        // Also check if they exist at all (sanity check)
-        const allUsers = await User.find({}, 'email role');
+        const dbUsers = await User.find({}, 'name email role');
 
         res.json({
             success: true,
-            message: 'CEO accounts processed',
+            message: 'CEO accounts RECREATED for safety',
             actions: results,
-            currentUsers: allUsers
+            currentDbUsers: dbUsers
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
