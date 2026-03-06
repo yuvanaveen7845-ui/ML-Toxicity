@@ -1,0 +1,31 @@
+text,label,absenteeism,after_hours
+"I am feeling completely overwhelmed and exhausted by the constant pressure at work.",1,5,10
+"The leadership team has already decided on this matter and we will not revisit it.",1,1,2
+"I really enjoy working with my colleagues and feel very supported here.",0,0,0
+"My manager is micromanaging every single detail of my work and it's frustrating.",1,2,5
+"The new project is challenging but I'm learning a lot and feel motivated.",0,0,0
+"I feel ignored and undervalued despite my hard work and dedication.",1,4,8
+"Leadership has aligned on this direction and your concern is noted.",1,0,1
+"I no longer assume ownership over my tasks because my input is never heard.",1,6,12
+"The workplace culture is very inclusive and transparent.",0,0,0
+"I've adjusted my expectations and will simply move on from this issue.",1,1,3
+"The workload is manageable and I have a good work-life balance.",0,0,0
+"I am experiencing extreme burnout and need a long break.",1,10,20
+"This is not the priority right now let's move on to the next topic.",1,0,0
+"I feel stressed and anxious every morning before coming to work.",1,3,6
+"My contributions are recognized and I see a clear path for growth.",0,1,0
+"Everything has already been decided so there is no point in speaking up.",1,2,4
+"I am happy with my current role and the support I receive from my team.",0,0,0
+"It's just one-sided communication where we are told what to do.",1,3,7
+"We discussed this earlier and the decision stands.",1,0,2
+"I feel like I'm stuck in a toxic environment with no support.",1,5,15
+"The team is great and we always collaborate effectively.",0,0,0
+"I've been feeling very drained and tired lately.",1,4,5
+"Leadership has already aligned so we should just move on.",1,0,0
+"I'm really excited about the upcoming company events.",0,0,0
+"My feedback is usually brushed aside or ignored.",1,3,4
+"We will revisit this later if there is time.",1,0,1
+"I feel very stressed and overwhelmed.",1,2,3
+"The project was a success and everyone's input was valued.",0,0,0
+"I'm leaving the company because I can't take the pressure anymore.",1,8,10
+"This is a great place to work with lots of opportunities.",0,0,0

@@ -1,12 +1,15 @@
 import os
+import threading
+import time
 import numpy as np
 import pandas as pd
 import joblib
 import nltk
+import schedule
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -17,27 +20,31 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
-# Disable CUDA loading for torch to avoid DLL errors on Windows
-import os
+from sentence_transformers import SentenceTransformer
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+
+# Disable CUDA loading for torch to avoid DLL errors on Windows if necessary
 os.environ["TORCH_DISABLE_CUDA"] = "1"
 
-# Hard-disabled advanced ML models to prevent Windows torch DLL WinError 1114
-EMBEDDING_AVAILABLE = False
-T5_AVAILABLE = False
+# Enable advanced ML models
+EMBEDDING_AVAILABLE = True
+T5_AVAILABLE = True
+
+# Configuration
+RETRAIN_THRESHOLD = 30
+CONFIDENCE_RANGE = (0.45, 0.55)
 
 # Download NLTK data
 nltk.download("vader_lexicon", quiet=True)
-nltk.download("wordnet", quiet=True)
-nltk.download("omw-1.4", quiet=True)
 
 # =============================
 # FastAPI App
 # =============================
 
 app = FastAPI(
-    title="HR Toxicity ML Service",
-    description="FastAPI microservice for workplace toxicity analysis",
-    version="1.0.0"
+    title="WorkShield AI Intelligence",
+    description="Advanced ML microservice for workplace toxicity analysis",
+    version="2.0.0"
 )
 
 app.add_middleware(
@@ -76,7 +83,7 @@ class RetrainResponse(BaseModel):
     model_path: Optional[str] = None
 
 # =============================
-# CONFIG
+# CONFIG & Global State
 # =============================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -86,10 +93,6 @@ VECTORIZER_PATH = os.path.join(BASE_DIR, "vectorizer.pkl")
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-# =============================
-# Global State
-# =============================
-
 model = None
 vectorizer = None
 sia = SentimentIntensityAnalyzer()
@@ -98,19 +101,11 @@ template_embeddings = None
 t5_tokenizer = None
 t5_model = None
 
-# =============================
-# Distress & Suppression
-# =============================
+uncertain_predictions = 0
 
-DISTRESS_WORDS = [
-    "overwhelmed", "exhausted", "drained", "burnout", "stressed", "anxious",
-    "ignored", "undervalued", "unheard", "unsupportive", "brushed aside",
-    "struggles", "pressure", "constant", "little flexibility", "one-sided",
-    "must adapt", "lacking", "frustrating", "pointless", "meaningless", "tired",
-    "biased", "unfair", "favoritism", "toxic", "awful", "terrible", "bad",
-    "micromanaged", "disappointed", "angry", "upset", "hostile", "bullying",
-    "harassment", "rude", "disrespectful", "quit", "leaving", "resign"
-]
+# =============================
+# Suppression Templates
+# =============================
 
 SUPPRESSION_TEMPLATES = [
     "This has already been decided",
@@ -125,6 +120,11 @@ SUPPRESSION_TEMPLATES = [
     "I no longer assume ownership"
 ]
 
+DISTRESS_WORDS = [
+    "overwhelmed", "exhausted", "drained", "burnout", "stressed", "anxious",
+    "ignored", "undervalued", "unheard"
+]
+
 # =============================
 # Feature Extraction
 # =============================
@@ -132,32 +132,23 @@ SUPPRESSION_TEMPLATES = [
 def extract_features(text: str):
     text_lower = text.lower()
     
-    # Calculate base sentiment via VADER
-    vader_scores = sia.polarity_scores(text)
-    base_sentiment = vader_scores["compound"]
+    # Sentiment via VADER
+    sentiment = sia.polarity_scores(text)["compound"]
     
-    # Count distress/frustration phrases (with basic stemming)
+    # Distress indicators
     distress = sum(w in text_lower for w in DISTRESS_WORDS)
     
-    # Boost distress if VADER shows strong negativity even without matched words
-    if vader_scores["neg"] > 0.15:
-        distress += 1
-    if vader_scores["neg"] > 0.30:
-        distress += 2
-        
-    # Apply a penalty to VADER for subtle frustration that VADER misses
-    sentiment = max(-1.0, base_sentiment - (distress * 0.15))
+    # Emotional intensity
+    emotional_intensity = abs(sentiment)
     
-    # Ensure emotional intensity reflects both negative sentiment and distress signs
-    emotional_intensity = abs(sentiment) + (distress * 0.1)
-    
+    # Suppression score via Sentence Transformers
     suppression_score = 0.0
-    if EMBEDDING_AVAILABLE and embedding_model is not None and template_embeddings is not None:
-        text_embedding = embedding_model.encode([text])
+    if EMBEDDING_AVAILABLE and embedding_model is not None:
+        text_embedding = embedding_model.encode([text], convert_to_numpy=True)
         similarity = cosine_similarity(text_embedding, template_embeddings)
         suppression_score = float(np.max(similarity))
     else:
-        # Fallback suppression detection
+        # Fallback keyword-based suppression
         for template in SUPPRESSION_TEMPLATES:
             if template.lower() in text_lower:
                 suppression_score = max(suppression_score, 0.7)
@@ -204,64 +195,42 @@ def generate_logic_insights(risk_score, sentiment, distress, suppression_score, 
 
     return insights
 
-def ai_rewrite_interpretation(insights, risk_score, sentiment):
+def ai_rewrite_interpretation(insights):
     if T5_AVAILABLE and t5_tokenizer is not None and t5_model is not None:
         text_in = " ".join(insights)
-        prompt = (
-            f"As an expert HR analyst, write a concise, professional 3-sentence executive summary "
-            f"interpreting these algorithmic indicators: {text_in} "
-            f"Risk Score: {risk_score}/100. Sentiment: {sentiment:.2f}. "
-            f"Focus on the business impact and cultural health."
-        )
-        inputs = t5_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
+        prompt = f"Rewrite the following workplace insights into a professional HR report. Insights: {text_in} Produce a concise executive-style explanation."
+        
+        inputs = t5_tokenizer(prompt, return_tensors="pt", truncation=True)
         outputs = t5_model.generate(
-            **inputs, 
-            max_length=150, 
-            temperature=0.7, 
-            do_sample=True, 
-            top_p=0.9, 
-            repetition_penalty=1.2
+            **inputs,
+            max_length=120,
+            temperature=0.2,
+            do_sample=False
         )
         return t5_tokenizer.decode(outputs[0], skip_special_tokens=True)
     else:
         return " ".join(insights)
 
 # =============================
-# Load / Train Model
+# Training / Loading
 # =============================
-
-def load_or_train_model():
-    global model, vectorizer
-
-    model_files = sorted(os.listdir(MODEL_DIR)) if os.path.exists(MODEL_DIR) else []
-    model_files = [f for f in model_files if f.endswith('.pkl')]
-
-    if model_files and os.path.exists(VECTORIZER_PATH):
-        latest_model = os.path.join(MODEL_DIR, model_files[-1])
-        model = joblib.load(latest_model)
-        vectorizer = joblib.load(VECTORIZER_PATH)
-        print(f"Loaded existing model: {latest_model}")
-    elif os.path.exists(DATA_PATH):
-        train_model_from_data()
-    else:
-        print("No data or model found. ML model will use fallback analysis.")
 
 def train_model_from_data():
     global model, vectorizer
+    if not os.path.exists(DATA_PATH):
+        return None
 
-    df = pd.read_csv(DATA_PATH)
+    df_train = pd.read_csv(DATA_PATH)
+    if "absenteeism" not in df_train.columns: df_train["absenteeism"] = 0
+    if "after_hours" not in df_train.columns: df_train["after_hours"] = 0
 
-    if "absenteeism" not in df.columns:
-        df["absenteeism"] = 0
-    if "after_hours" not in df.columns:
-        df["after_hours"] = 0
-
-    df[["sentiment", "distress", "emotional_intensity", "suppression_score"]] = \
-        df["text"].apply(lambda x: pd.Series(extract_features(x)))
+    # Ensure all features exist
+    df_train[["sentiment", "distress", "emotional_intensity", "suppression_score"]] = \
+        df_train["text"].apply(lambda x: pd.Series(extract_features(x)))
 
     vectorizer = TfidfVectorizer(max_features=500, stop_words="english")
-    X = build_features(df, vectorizer, fit=True)
-    y = df["label"]
+    X = build_features(df_train, vectorizer, fit=True)
+    y = df_train["label"]
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.25, stratify=y, random_state=42
@@ -278,12 +247,36 @@ def train_model_from_data():
 
     version = datetime.now().strftime("%Y%m%d_%H%M%S")
     model_path = os.path.join(MODEL_DIR, f"model_{version}.pkl")
-
     joblib.dump(model, model_path)
     joblib.dump(vectorizer, VECTORIZER_PATH)
 
     print(f"Model saved: {model_path}")
     return model_path
+
+def load_or_train():
+    global model, vectorizer
+    model_files = sorted([f for f in os.listdir(MODEL_DIR) if f.endswith(".pkl")]) if os.path.exists(MODEL_DIR) else []
+    
+    if model_files and os.path.exists(VECTORIZER_PATH):
+        latest_model = os.path.join(MODEL_DIR, model_files[-1])
+        model = joblib.load(latest_model)
+        vectorizer = joblib.load(VECTORIZER_PATH)
+        print(f"Loaded model: {latest_model}")
+    else:
+        train_model_from_data()
+
+# =============================
+# Scheduled Tasks
+# =============================
+
+def run_schedule_loop():
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
+
+def scheduled_retraining():
+    print("Executing scheduled daily retraining...")
+    train_model_from_data()
 
 # =============================
 # Startup
@@ -293,26 +286,32 @@ def train_model_from_data():
 async def startup():
     global embedding_model, template_embeddings, t5_tokenizer, t5_model
 
-    # Load embedding model
+    print("Initializing AI models...")
+    
     if EMBEDDING_AVAILABLE:
         try:
             embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-            template_embeddings = embedding_model.encode(SUPPRESSION_TEMPLATES)
-            print("Embedding model loaded")
+            template_embeddings = embedding_model.encode(SUPPRESSION_TEMPLATES, convert_to_numpy=True)
+            print("SentenceTransformer loaded")
         except Exception as e:
-            print(f"Embedding model failed to load: {e}")
+            print(f"Embedding load failed: {e}")
 
-    # Load T5 model
     if T5_AVAILABLE:
         try:
-            t5_tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-large")
-            t5_model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large")
-            print("T5 model loaded")
+            t5_tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-base")
+            t5_model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base")
+            print("T5 HR AI loaded")
         except Exception as e:
-            print(f"T5 model failed to load: {e}")
+            print(f"T5 load failed: {e}")
 
-    # Load or train ML model
-    load_or_train_model()
+    load_or_train()
+    
+    # Start schedule thread
+    schedule.every().day.at("02:00").do(scheduled_retraining)
+    thread = threading.Thread(target=run_schedule_loop, daemon=True)
+    thread.start()
+    
+    print("WorkShield ML Service READY")
 
 # =============================
 # Endpoints
@@ -320,13 +319,17 @@ async def startup():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "ml_model_loaded": model is not None}
+    return {
+        "status": "ok", 
+        "ml_model": model is not None,
+        "embedding_model": embedding_model is not None,
+        "hr_ai": t5_model is not None
+    }
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(request: AnalyzeRequest):
     text = request.text.strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="Text cannot be empty")
+    if not text: raise HTTPException(status_code=400, detail="Text required")
 
     sentiment, distress, emotional_intensity, suppression_score = extract_features(text)
     stress_index = distress + emotional_intensity
@@ -344,67 +347,59 @@ async def analyze(request: AnalyzeRequest):
             "absenteeism": [request.absenteeism],
             "after_hours": [request.after_hours]
         })
-
-        combined = build_features(temp_df, vectorizer)
-        probability = model.predict_proba(combined)[0][1]
-        risk_score = round(probability * 100, 2)
-
-        if 0.45 < probability < 0.55:
+        feat = build_features(temp_df, vectorizer)
+        prob = model.predict_proba(feat)[0][1]
+        risk_score = round(prob * 100, 2)
+        
+        if CONFIDENCE_RANGE[0] < prob < CONFIDENCE_RANGE[1]:
             confidence = "low"
-        elif 0.35 < probability < 0.65:
-            confidence = "medium"
+            # Track uncertain predictions for auto-retraining
+            global uncertain_predictions
+            uncertain_predictions += 1
+            if uncertain_predictions >= RETRAIN_THRESHOLD:
+                print("Uncertainty threshold reached. Triggering auto-retrain...")
+                train_model_from_data()
+                uncertain_predictions = 0
+                
     else:
-        # Fallback scoring
         source = "fallback"
         confidence = "medium"
-        risk_score = min(100, max(0,
-            distress * 8 + emotional_intensity * 10 +
-            suppression_score * 15 +
-            min(request.absenteeism, 10) * 3 +
-            min(request.after_hours, 15) * 2
+        risk_score = min(100, max(0, 
+            distress * 8 + emotional_intensity * 10 + suppression_score * 15 +
+            min(request.absenteeism, 10) * 3 + min(request.after_hours, 15) * 2
         ))
-        risk_score = round(risk_score, 2)
 
-    if risk_score < 35:
-        risk_category = "Healthy Cultural Indicators"
-    elif risk_score < 70:
-        risk_category = "Moderate Workplace Risk"
-    else:
-        risk_category = "High Toxic Environment Risk"
+    if risk_score < 35: category = "Healthy Cultural Indicators"
+    elif risk_score < 70: category = "Moderate Workplace Risk"
+    else: category = "High Toxic Environment Risk"
 
-    logic_insights = generate_logic_insights(
-        risk_score, sentiment, distress,
-        suppression_score, request.absenteeism, request.after_hours
-    )
-
-    ai_interpretation = ai_rewrite_interpretation(logic_insights, risk_score, sentiment)
+    insights = generate_logic_insights(risk_score, sentiment, distress, suppression_score, request.absenteeism, request.after_hours)
+    interpretation = ai_rewrite_interpretation(insights)
 
     return AnalyzeResponse(
         risk_score=risk_score,
-        risk_category=risk_category,
+        risk_category=category,
         sentiment=round(sentiment, 3),
         distress=distress,
         emotional_intensity=round(emotional_intensity, 3),
         suppression_score=round(suppression_score, 3),
         stress_index=round(stress_index, 3),
-        logic_insights=logic_insights,
-        ai_interpretation=ai_interpretation,
+        logic_insights=insights,
+        ai_interpretation=interpretation,
         confidence=confidence,
         source=source
     )
 
 @app.post("/retrain", response_model=RetrainResponse)
 async def retrain():
-    if not os.path.exists(DATA_PATH):
-        raise HTTPException(status_code=404, detail="Training data not found")
-
     try:
-        model_path = train_model_from_data()
-        return RetrainResponse(success=True, message="Model retrained successfully", model_path=model_path)
+        path = train_model_from_data()
+        return RetrainResponse(success=True, message="Retrained successfully", model_path=path)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Retraining failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 5001))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
